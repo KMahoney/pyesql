@@ -8,10 +8,22 @@ class TestParseQuery(TestCase):
         -- name: test
         QUERY BODY
         """
-        name, doc, body = parse_query(LineParser(query))
-        self.assertEqual(name, 'test')
-        self.assertEqual(doc, '')
-        self.assertEqual(body.strip(), 'QUERY BODY')
+        q = parse_query(LineParser(query))
+        self.assertEqual(q.name, 'test')
+        self.assertFalse(q.statement)
+        self.assertEqual(q.doc, '')
+        self.assertEqual(q.body.strip(), 'QUERY BODY')
+
+    def test_statement(self):
+        query = """
+        -- name: test!
+        QUERY BODY
+        """
+        q = parse_query(LineParser(query))
+        self.assertEqual(q.name, 'test')
+        self.assertTrue(q.statement)
+        self.assertEqual(q.doc, '')
+        self.assertEqual(q.body.strip(), 'QUERY BODY')
 
     def test_multiline_query(self):
         query = """
@@ -22,10 +34,10 @@ class TestParseQuery(TestCase):
 
         QUERY BODY 3
         """
-        name, doc, body = parse_query(LineParser(query))
-        self.assertEqual(name, 'test')
-        self.assertEqual(doc, '')
-        self.assertEqual([l.strip() for l in body.splitlines()],
+        q = parse_query(LineParser(query))
+        self.assertEqual(q.name, 'test')
+        self.assertEqual(q.doc, '')
+        self.assertEqual([l.strip() for l in q.body.splitlines()],
                          ['QUERY BODY 1', '', 'QUERY BODY 2', '', 'QUERY BODY 3', ''])
 
     def test_include_comment_query(self):
@@ -35,10 +47,10 @@ class TestParseQuery(TestCase):
         -- comment
         QUERY BODY 2
         """
-        name, doc, body = parse_query(LineParser(query))
-        self.assertEqual(name, 'test')
-        self.assertEqual(doc, '')
-        self.assertEqual([l.strip() for l in body.splitlines()],
+        q = parse_query(LineParser(query))
+        self.assertEqual(q.name, 'test')
+        self.assertEqual(q.doc, '')
+        self.assertEqual([l.strip() for l in q.body.splitlines()],
                          ['QUERY BODY 1', '-- comment', 'QUERY BODY 2', ''])
 
     def test_doc_query(self):
@@ -48,10 +60,10 @@ class TestParseQuery(TestCase):
         -- documentation2
         QUERY BODY
         """
-        name, doc, body = parse_query(LineParser(query))
-        self.assertEqual(name, 'test')
-        self.assertEqual(doc.strip(), 'documentation1\ndocumentation2')
-        self.assertEqual(body.strip(), 'QUERY BODY')
+        q = parse_query(LineParser(query))
+        self.assertEqual(q.name, 'test')
+        self.assertEqual(q.doc.strip(), 'documentation1\ndocumentation2')
+        self.assertEqual(q.body.strip(), 'QUERY BODY')
 
     def test_no_body(self):
         query = """
@@ -86,10 +98,10 @@ class TestParseQueries(TestCase):
         QUERY BODY 2
         """
         queries = parse_queries(query)
-        self.assertEqual(queries['test1'][0].strip(), 'doc1')
-        self.assertEqual(queries['test1'][1].strip(), 'QUERY BODY 1')
-        self.assertEqual(queries['test2'][0].strip(), 'doc2')
-        self.assertEqual(queries['test2'][1].strip(), 'QUERY BODY 2')
+        self.assertEqual(queries['test1'].doc.strip(), 'doc1')
+        self.assertEqual(queries['test1'].body.strip(), 'QUERY BODY 1')
+        self.assertEqual(queries['test2'].doc.strip(), 'doc2')
+        self.assertEqual(queries['test2'].body.strip(), 'QUERY BODY 2')
 
     def test_no_endline(self):
         query = """
@@ -101,10 +113,10 @@ class TestParseQueries(TestCase):
         -- doc2
         QUERY BODY 2"""
         queries = parse_queries(query)
-        self.assertEqual(queries['test1'][0].strip(), 'doc1')
-        self.assertEqual(queries['test1'][1].strip(), 'QUERY BODY 1')
-        self.assertEqual(queries['test2'][0].strip(), 'doc2')
-        self.assertEqual(queries['test2'][1].strip(), 'QUERY BODY 2')
+        self.assertEqual(queries['test1'].doc.strip(), 'doc1')
+        self.assertEqual(queries['test1'].body.strip(), 'QUERY BODY 1')
+        self.assertEqual(queries['test2'].doc.strip(), 'doc2')
+        self.assertEqual(queries['test2'].body.strip(), 'QUERY BODY 2')
 
 
 class TestObject(TestCase):

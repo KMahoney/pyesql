@@ -5,7 +5,7 @@ CREATE TABLE test (
        b INT NOT NULL
 )
 
--- name: clean_test
+-- name: clean_test!
 -- Make sure we have a clean test table
 TRUNCATE TABLE test
 

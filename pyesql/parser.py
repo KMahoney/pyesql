@@ -1,5 +1,6 @@
 import re
 from os.path import basename
+from collections import namedtuple
 
 
 class ParseError(Exception):
@@ -7,8 +8,11 @@ class ParseError(Exception):
     pass
 
 
+Query = namedtuple('Query', ['name', 'statement', 'doc', 'body'])
+
+
 WHITESPACE_RE = re.compile('^\s*$')
-NAME_RE = re.compile('^\s*--\s*name:')
+NAME_RE = re.compile('^\s*--\s*name:\s*([a-zA-Z0-9_]+!?)\s*$')
 DOC_RE = re.compile('^\s*--\s*')
 
 
@@ -41,7 +45,12 @@ def parse_query(parser):
     if parser.eof() or not NAME_RE.match(parser.line):
         raise ParseError("{}: Expecting '-- name: <query-name>'".format(parser.linecount))
 
-    name = re.sub(NAME_RE, '', parser.line).strip()
+    name = NAME_RE.match(parser.line).group(1)
+    statement = False
+    if name.endswith('!'):
+        statement = True
+        name = name[:-1]
+
     parser.next()
     parser.skip_whitespace()
 
@@ -67,25 +76,28 @@ def parse_query(parser):
         parser.next()
     body = '\n'.join(body_lines)
 
-    return name, doc, body
+    return Query(name, statement, doc, body)
 
 
 def parse_queries(source):
     queries = {}
     parser = LineParser(source)
     while not parser.eof():
-        name, doc, body = parse_query(parser)
-        queries[name] = (doc, body)
+        query = parse_query(parser)
+        queries[query.name] = query
         parser.skip_whitespace()
     return queries
 
 
-def _make_query_fn(doc, body):
+def _make_query_fn(query):
     def inner(self, *args, **kwargs):
         cursor = self.connection.cursor()
-        cursor.execute(body, kwargs)
-        return cursor.fetchall()
-    inner.__doc__ = doc
+        result = cursor.execute(query.body, kwargs)
+        if query.statement:
+            return result
+        else:
+            return cursor.fetchall()
+    inner.__doc__ = query.doc
     return inner
 
 
@@ -102,7 +114,13 @@ def parse_source(name, source):
         -- optional documentation
         BODY %(parameter)s
 
+    Follow the name with a bang (!) if no rows are returned. The bang
+    is not used in the method name.
+
     For example given the SQL source::
+
+        -- name: delete_all!
+        DELETE FROM test
 
         -- name: test1
         -- documentation test1
@@ -118,6 +136,7 @@ def parse_source(name, source):
         example = Example(connection)
         example.test1()
         example.test2(y=1)
+        example.delete_all()
 
     :param str name: Name of the returned type
     :param str source: Source SQL
@@ -126,7 +145,7 @@ def parse_source(name, source):
 
     """
     queries = parse_queries(source)
-    obj = {k: _make_query_fn(*v) for k, v in queries.items()}
+    obj = {k: _make_query_fn(v) for k, v in queries.items()}
 
     def __init__(self, connection):
         self.connection = connection
